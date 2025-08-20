@@ -1,0 +1,317 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "command": "python3 /server_monitor.py"
+      },
+      "id": "c9f8c146-99af-4bcd-9cef-5f8f69bb707a",
+      "name": "Check Server Health",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        -80
+      ],
+      "credentials": {
+        "sshPassword": {
+          "id": "mBswuixQqbz93HBF",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "assistant",
+        "assistantId": {
+          "__rl": true,
+          "value": "asst_gOaSUaGDejnklFCHLxH9N7zB",
+          "mode": "list",
+          "cachedResultName": "Alok"
+        },
+        "prompt": "define",
+        "text": "=You are an expert server monitoring assistant.\n\nHere are the server metrics and logs:\n{{$json[\"stdout\"]}}\n\nTask:\n1. Identify the root cause if anomaly.\n2. Suggest the best remediation action (restart_service, scale_resources, clear_cache, or escalate).\n3. Identify the affected service (if any).\n4. Provide the exact shell command(s) that can be used to remediate the issue.\n\n⚠️ RULES:\n- Respond ONLY with a single valid JSON object.\n- Do NOT include code fences (```).\n- Do NOT add explanations, text, or multiple objects.\n- The JSON must include keys: \"cause\", \"action\", \"service\", \"commands\".\n\nFormat:\n{\n  \"cause\": \"string\",\n  \"action\": \"restart_service|scale_resources|clear_cache|escalate\",\n  \"service\": \"string|null\",\n  \"commands\": [\"string\"]   // array of shell commands to fix the issue\n}\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -272,
+        -80
+      ],
+      "id": "f15e1193-e0b7-4236-8686-815b5e1d3e83",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "UgoxGxIFDVWrkfh4",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#ys-alerts",
+          "mode": "name"
+        },
+        "text": "={{$json[\"slackMessage\"]}}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        192,
+        -80
+      ],
+      "id": "6c48891d-4590-4984-9487-b2f932835694",
+      "name": "Send a message",
+      "webhookId": "0646e1d3-3860-496f-90bc-e07e51326f33",
+      "credentials": {
+        "slackApi": {
+          "id": "laTO5RSUsxvmq3aT",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access AI output\nconst aiOutput = $json[\"output\"];\n\n// Parse JSON string\nlet data;\ntry {\n  data = JSON.parse(aiOutput);\n} catch (err) {\n  data = {\n    cause: \"Parsing error\",\n    action: \"escalate\",\n    service: null,\n    commands: []\n  };\n}\n\n// Format Slack message\nconst message = `:warning: *Server Healing Alert*\\n\n*Cause:* ${data.cause}\n*Action:* ${data.action}\n*Service:* ${data.service || \"N/A\"}\n*Commands to Execute:*\\n${data.commands.map(cmd => `\\`${cmd}\\``).join(\"\\n\")}`;\n\nreturn [\n  {\n    json: {\n      slackMessage: message\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -80
+      ],
+      "id": "4a15effd-a2f5-4c4c-84a6-9f8ba68f5ab7",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "command": "={{$json[\"command\"]}}"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -80
+      ],
+      "id": "7857e542-a5eb-46ee-bd4f-1b5c171b8a9a",
+      "name": "Execute a command",
+      "credentials": {
+        "sshPassword": {
+          "id": "mBswuixQqbz93HBF",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input from previous Slack or AI node\nconst aiOutput = $json[\"message\"][\"text\"];\n\n// If you already have JSON from AI node instead, replace this with that JSON\n// Example: const aiOutput = $json[\"output\"];\n\nlet commands = [];\n\n// Use regex to extract commands from text block\nconst commandRegex = /`([^`]+)`/g;\nlet match;\nwhile ((match = commandRegex.exec(aiOutput)) !== null) {\n  commands.push(match[1]);\n}\n\nreturn commands.map(cmd => ({ json: { command: cmd } }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -80
+      ],
+      "id": "91acae4d-4aaa-4b05-9784-53b7a95769ae",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#ys-alerts",
+          "mode": "name"
+        },
+        "text": "={{ $json['message'] }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1024,
+        -80
+      ],
+      "id": "ab966ed7-fd86-4e2c-aefc-7e0d857d67cb",
+      "name": "Send a message1",
+      "webhookId": "ac8b7358-b352-4c6f-865d-4b0322368cf0",
+      "credentials": {
+        "slackApi": {
+          "id": "laTO5RSUsxvmq3aT",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "python3 /auto.py"
+      },
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [
+        640,
+        -80
+      ],
+      "id": "8bb59a4a-5163-4910-aa29-7a2dd2628ee6",
+      "name": "Execute a command1",
+      "credentials": {
+        "sshPassword": {
+          "id": "mBswuixQqbz93HBF",
+          "name": "SSH Password account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function Node\n\nlet combinedIssues = [];\nlet combinedActions = [];\n\nitems.forEach(item => {\n    const data = JSON.parse(item.json.stdout);\n\n    // Backup issue\n    if (data.backup_exists === false) {\n        combinedIssues.push(\"Backup is missing\");\n        if (data.proposed_actions && data.proposed_actions.length > 0) {\n            data.proposed_actions.forEach(a => {\n                combinedActions.push(`- ${a.message} (Command: ${a.command})`);\n            });\n        }\n    }\n\n    // Services down\n    for (const [service, status] of Object.entries(data.services_status)) {\n        if (!status) {\n            combinedIssues.push(`Service '${service}' is down`);\n        }\n    }\n\n    // Cron job failures\n    for (const [cron, status] of Object.entries(data.cron_status)) {\n        if (!status) {\n            combinedIssues.push(`Cron job '${cron}' failed`);\n        }\n    }\n});\n\n// Remove duplicates\ncombinedIssues = [...new Set(combinedIssues)];\ncombinedActions = [...new Set(combinedActions)];\n\nif (combinedIssues.length > 0) {\n    return [{\n        json: {\n            alert: true,\n            message: `⚠️ *Attention Team! Issues detected that require resolution:*\\n\\n*Issues:*\\n- ${combinedIssues.join(\"\\n- \")}${combinedActions.length > 0 ? `\\n\\n*Proposed Actions:*\\n${combinedActions.join(\"\\n\")}` : ''}\\n\\nPlease resolve these issues as soon as possible.`\n        }\n    }];\n} else {\n    return [{\n        json: {\n            alert: false\n        }\n    }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -80
+      ],
+      "id": "756c65d1-3930-43de-9ab2-7e2dcf1e8e3d",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -672,
+        -80
+      ],
+      "id": "a8dfd4c9-c371-4b13-a910-2a4e92d59eac",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Check Server Health": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Execute a command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a command": {
+      "main": [
+        [
+          {
+            "node": "Execute a command1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a command1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Server Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1
+  },
+  "versionId": "48aa3935-19b1-4cb4-98b6-5605e4f33b2d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "762a340ab9db567d6fc9441041af77569fbe655df0c7fa6508c354f5007d138f"
+  },
+  "id": "eh6uvjADJIals96z",
+  "tags": []
+}
